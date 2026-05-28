@@ -39,8 +39,6 @@ public class SimpleDb {
         } catch(SQLException e) {
             throw new RuntimeException(e);
         }
-
-
     }
 
     public Connection getConnection() {

@@ -2,8 +2,10 @@ package com.back.simpleDb;
 
 import com.back.domain.Article;
 
+import java.sql.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,6 +25,9 @@ public class Sql {
     public Sql append(String query, Object... args) {
         stringBuilder.append(query).append("\n");
 
+        for (Object arg : args) {
+            params.add(arg);
+        }
 
         return this;
     }
@@ -32,21 +37,93 @@ public class Sql {
         return this;
     }
 
-    public long insert() {
-        return 0;
+    private PreparedStatement prepareStatement(Connection conn) throws SQLException {
+        return prepareStatement(conn, false);
     }
 
+    private PreparedStatement prepareStatement(Connection conn, boolean returnGeneratedKeys) throws SQLException {
+        String sql = stringBuilder.toString();
+        PreparedStatement pstmt = returnGeneratedKeys ?
+                conn.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS) : conn.prepareStatement(sql);
+
+        for (int i = 0; i < params.size(); i++) {
+            pstmt.setObject(i + 1, params.get(i));
+        }
+        return pstmt;
+    }
+
+    private int executeUpdate() {
+        Connection conn = simpleDb.getConnection();
+
+        try (PreparedStatement pstmt = prepareStatement(conn)) {
+            return pstmt.executeUpdate();
+        } catch(SQLException e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+
+    // 데이터베이스 입력 메서드
+    public long insert() {
+        Connection conn = simpleDb.getConnection();
+
+        try (PreparedStatement pstmt = prepareStatement(conn, true)){
+            pstmt.executeUpdate();
+            try (ResultSet rs = pstmt.getGeneratedKeys()){
+                if(rs.next()) {
+                    return rs.getLong(1);
+                }
+            return 0;
+            } catch(SQLException e) {
+                throw new RuntimeException(e);
+            }
+        } catch(SQLException e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+
+
     public int update() {
-        return 0;
+        return executeUpdate();
     }
 
     public int delete() {
-        return 0;
+        return executeUpdate();
+
     }
 
     //여러 값 출력
     public List<Map<String, Object>> selectRows() {
-        return null;
+        Connection conn = simpleDb.getConnection();
+
+        try(PreparedStatement pstmt = prepareStatement(conn); ResultSet rs = pstmt.executeQuery();) {
+
+            ResultSetMetaData metaData = rs.getMetaData();
+            int columnCount = metaData.getColumnCount();
+            List<Map<String, Object>> rows = new ArrayList<>();
+
+
+            while(rs.next()) {
+                Map<String, Object> row = new HashMap<>();
+
+                for(int i = 1; i <= columnCount; i++) {
+                    String columnName = metaData.getColumnLabel(i);
+                    Object value = rs.getObject(i);
+
+                    row.put(columnName, value);
+                }
+
+                rows.add(row);
+
+            }
+
+            return rows;
+
+        } catch(SQLException e) {
+            throw new RuntimeException();
+        }
+
     }
 
 
@@ -85,7 +162,6 @@ public class Sql {
     public boolean selectBoolean() {
         return false;
     }
-
 
 
 }
